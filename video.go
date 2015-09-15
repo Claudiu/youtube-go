@@ -11,14 +11,15 @@ import (
 )
 
 const (
-	videoURL     = "www.youtube.com/watch"
-	videoInfoURL = "www.youtube.com/get_video_info"
+	hostName     = "www.youtube.com"
+	videoURL     = "/watch"
+	videoInfoURL = "/get_video_info"
 )
 
 var (
-	playerJsReg  = regexp.MustCompile(`"js"\s*:\s*"(.+?)"`)
-	urlMapReg    = regexp.MustCompile(`"url_encoded_fmt_stream_map": "(.+?)"`)
-	videoDescReg = regexp.MustCompile(`content="(.+?)"`)
+	playerJsRe  = regexp.MustCompile(`"js"\s*:\s*"(.+?)"`)
+	urlMapRe    = regexp.MustCompile(`encoded_fmt_stream_map"\s*:\s*"(.+?)"`)
+	videoDescRe = regexp.MustCompile(`content="(.+?)"`)
 )
 
 type Video struct {
@@ -40,7 +41,8 @@ type VideoFormat struct {
 
 func GetVideo(id string) (*Video, error) {
 	params := url.Values{"video_id": {id}, "el": {"detailpage"}}.Encode()
-	videoURL := url.URL{Host: videoInfoURL, Scheme: "https", RawQuery: params}
+	videoURL := url.URL{Host: hostName, Path: videoInfoURL,
+		Scheme: "https", RawQuery: params}
 
 	data, err := getURLData(videoURL.String())
 	if err != nil {
@@ -88,7 +90,8 @@ func (v *Video) ReadFormats() error {
 	v.Formats = []*VideoFormat{}
 
 	params := url.Values{"v": {v.Id}}.Encode()
-	videoURL := url.URL{Host: videoURL, Scheme: "https", RawQuery: params}
+	videoURL := url.URL{Host: hostName, Path: videoURL,
+		Scheme: "https", RawQuery: params}
 
 	data, err := getURLData(videoURL.String())
 	if err != nil {
@@ -102,7 +105,7 @@ func (v *Video) ReadFormats() error {
 		// Try and read the description of the video if not present
 		if v.Description == "" {
 			if strings.Contains(line, "<meta name=\"description\"") {
-				matches := videoDescReg.FindStringSubmatch(line)
+				matches := videoDescRe.FindStringSubmatch(line)
 				if matches != nil && len(matches) > 1 {
 					v.Description = html.UnescapeString(matches[1])
 				}
@@ -116,7 +119,7 @@ func (v *Video) ReadFormats() error {
 		}
 
 		// Get player js url
-		matches := playerJsReg.FindStringSubmatch(line)
+		matches := playerJsRe.FindStringSubmatch(line)
 		if matches == nil || len(matches) <= 1 {
 			return errors.New("Could not find the url of the js player")
 		}
@@ -128,7 +131,7 @@ func (v *Video) ReadFormats() error {
 		}
 
 		// Get format stream map
-		matches = urlMapReg.FindStringSubmatch(line)
+		matches = urlMapRe.FindStringSubmatch(line)
 		if matches == nil || len(matches) <= 1 {
 			return errors.New("Could not find format stream map")
 		}
